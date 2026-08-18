@@ -1,12 +1,11 @@
 """
-API de preprocesamiento NLP (spaCy) — sigue el flujo de la diapositiva
-"NLP Workflow": Raw text -> Preprocessing -> Feature Extraction -> Model -> Output.
+API de procesamiento de texto — implementa el contrato de la guía del
+laboratorio (Procesamiento_de_texto_con_spaCy_y_AWS.pdf, sección 8: "Perfil
+mínimo de interoperabilidad del evaluador").
 
-Este mismo archivo se despliega tal cual en las dos APIs pedidas:
-  - EC2 / Cloud9: uvicorn main:app
-  - Lambda: envuelto con Mangum (ver lambda_handler.py)
-
-Integrantes: Andrés Castro, Juan Hurtado, Miguel Flechas, Julián Rincón.
+Este mismo archivo se despliega tal cual en las dos arquitecturas exigidas:
+  - EC2 / Cloud9: uvicorn main:app (ver ec2/)
+  - Lambda: envuelto con Mangum (ver lambda/lambda_handler.py)
 """
 import logging
 import time
@@ -22,14 +21,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("nlp_api")
 
 app = FastAPI(
-    title="NLP Pipeline API",
-    description="Preprocesamiento con spaCy — Andrés Castro, Juan Hurtado, Miguel Flechas, Julián Rincón",
-    version="1.0.0",
+    title="NLP Text Processing API",
+    description="Contrato del Laboratorio I - 2026 S02 (spaCy + AWS)",
+    version="2.0.0",
 )
 
-# API pública de solo lectura/análisis de texto, sin autenticación ni datos
-# sensibles — CORS abierto es intencional para que se pueda probar desde
-# cualquier origen (Swagger UI, notebooks, la app del profesor, etc.).
+# API pública de solo análisis de texto, sin autenticación ni datos sensibles.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -37,9 +34,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ALLOWED_MODELS = {"es_core_news_sm"}
 MAX_TEXT_LENGTH = 100_000
-MAX_CORPUS_SIZE = 200
+MAX_BATCH_SIZE = 500
 
 
 @app.middleware("http")
@@ -51,55 +47,54 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-class TextIn(BaseModel):
-    text: str
-    model: str = "es_core_news_sm"
+def _validate_one(v: str, *, field: str) -> str:
+    if not isinstance(v, str):
+        raise ValueError(f"{field}: cada elemento debe ser string")
+    if len(v) > MAX_TEXT_LENGTH:
+        raise ValueError(f"{field}: texto demasiado largo ({len(v)} chars), máximo {MAX_TEXT_LENGTH}")
+    if not v.strip():
+        raise ValueError(f"{field}: no puede estar vacío ni contener solo espacios")
+    return v
 
-    @field_validator("model")
-    @classmethod
-    def model_allowed(cls, v: str) -> str:
-        if v not in ALLOWED_MODELS:
-            raise ValueError(f"modelo no soportado, usa uno de: {sorted(ALLOWED_MODELS)}")
-        return v
+
+class TextBatchIn(BaseModel):
+    """Usada por /clean, /pos, /ner — text acepta un string o una lista de strings."""
+    text: str | list[str]
 
     @field_validator("text")
     @classmethod
-    def text_within_length(cls, v: str) -> str:
-        if len(v) > MAX_TEXT_LENGTH:
-            raise ValueError(f"texto demasiado largo ({len(v)} chars), máximo {MAX_TEXT_LENGTH}")
-        return v
+    def validate_text(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str):
+            _validate_one(v, field="text")
+            return [v]
+        if not isinstance(v, list) or len(v) == 0:
+            raise ValueError("text: el lote no puede estar vacío")
+        if len(v) > MAX_BATCH_SIZE:
+            raise ValueError(f"text: lote demasiado grande ({len(v)}), máximo {MAX_BATCH_SIZE}")
+        return [_validate_one(item, field="text") for item in v]
 
 
-class EncodingIn(BaseModel):
-    texts: list[str]
-    model: str = "es_core_news_sm"
-    method: str = "bow"
+class DependencyIn(BaseModel):
+    """Usada por /visualize/dep — un único string, nunca un lote."""
+    text: str
 
-    @field_validator("model")
+    @field_validator("text")
     @classmethod
-    def model_allowed(cls, v: str) -> str:
-        if v not in ALLOWED_MODELS:
-            raise ValueError(f"modelo no soportado, usa uno de: {sorted(ALLOWED_MODELS)}")
-        return v
+    def validate_text(cls, v: str) -> str:
+        return _validate_one(v, field="text")
 
-    @field_validator("method")
-    @classmethod
-    def method_allowed(cls, v: str) -> str:
-        if v not in {"bow", "tfidf", "onehot"}:
-            raise ValueError("method debe ser 'bow', 'tfidf' u 'onehot'")
-        return v
 
-    @field_validator("texts")
+class VectorizeIn(BaseModel):
+    documents: list[str]
+
+    @field_validator("documents")
     @classmethod
-    def texts_within_limits(cls, v: list[str]) -> list[str]:
-        if not v:
-            raise ValueError("texts no puede estar vacío")
-        if len(v) > MAX_CORPUS_SIZE:
-            raise ValueError(f"corpus demasiado grande ({len(v)} textos), máximo {MAX_CORPUS_SIZE}")
-        for t in v:
-            if len(t) > MAX_TEXT_LENGTH:
-                raise ValueError(f"un texto del corpus excede {MAX_TEXT_LENGTH} chars")
-        return v
+    def validate_documents(cls, v: list[str]) -> list[str]:
+        if not isinstance(v, list) or len(v) < 2:
+            raise ValueError("documents: se requieren al menos 2 documentos")
+        if len(v) > MAX_BATCH_SIZE:
+            raise ValueError(f"documents: lote demasiado grande ({len(v)}), máximo {MAX_BATCH_SIZE}")
+        return [_validate_one(item, field="documents") for item in v]
 
 
 @app.get("/health")
@@ -107,41 +102,26 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/")
-def root():
-    return {
-        "api": "NLP Pipeline API",
-        "integrantes": ["Andrés Castro", "Juan Hurtado", "Miguel Flechas", "Julián Rincón"],
-        "endpoints": ["/processed", "/dependency", "/ner", "/full", "/encoding"],
-    }
+@app.post("/api/v1/clean")
+def clean(body: TextBatchIn):
+    return {"cleaned_text": [nlp.clean_text_joined(t) for t in body.text]}
 
 
-@app.post("/processed")
-def processed(body: TextIn):
-    return {"original": body.text, "processed": nlp.clean_and_transform(body.text, body.model)}
+@app.post("/api/v1/pos")
+def pos(body: TextBatchIn):
+    return {"results": [{"tokens": nlp.pos_tokens(t)} for t in body.text]}
 
 
-@app.post("/dependency")
-def dependency(body: TextIn, format: str = "html"):
-    if format == "json":
-        doc_html = nlp.dependency_html(body.text, body.model)
-        return {"original": body.text, "html": doc_html}
-    return HTMLResponse(nlp.dependency_html(body.text, body.model))
+@app.post("/api/v1/ner")
+def ner(body: TextBatchIn):
+    return {"results": [{"entities": nlp.ner_entities(t)} for t in body.text]}
 
 
-@app.post("/ner")
-def ner(body: TextIn, format: str = "html"):
-    entities = nlp.ner_entities(body.text, body.model)
-    if format == "json":
-        return {"original": body.text, "entities": entities}
-    return HTMLResponse(nlp.ner_html(body.text, body.model))
+@app.post("/api/v1/visualize/dep", response_class=HTMLResponse)
+def visualize_dep(body: DependencyIn):
+    return nlp.dependency_svg_html(body.text)
 
 
-@app.post("/full")
-def full(body: TextIn):
-    return nlp.full_pipeline(body.text, body.model)
-
-
-@app.post("/encoding")
-def encoding(body: EncodingIn):
-    return nlp.encode_corpus(body.texts, body.model, body.method)
+@app.post("/api/v1/vectorize")
+def vectorize(body: VectorizeIn):
+    return nlp.vectorize(body.documents)

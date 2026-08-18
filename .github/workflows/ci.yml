@@ -34,4 +34,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Lambda container image
-        run: docker build -t nlp-lambda-api .
+        run: docker build -f lambda/Dockerfile -t nlp-lambda-api .

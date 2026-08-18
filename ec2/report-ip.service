@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 User=ubuntu
-ExecStart=/home/ubuntu/environment/aws_apis/scripts/report_ip.sh
+ExecStart=/home/ubuntu/environment/aws_apis/ec2/report_ip.sh
 RemainAfterExit=true
 
 [Install]
