@@ -8,6 +8,13 @@ set -e
 REPO_DIR="/home/ubuntu/environment/aws_apis"
 cd "$REPO_DIR"
 
+# Sincroniza con el remoto antes de generar/pushear STATUS.md. Sin esto, si el
+# repo avanzó desde el último pull en esta instancia (p. ej. commits hechos
+# desde otra máquina mientras la EC2 estaba apagada), el push se rechaza y el
+# servicio queda en 'failed' — bug real que se vio en producción.
+git fetch origin main
+git reset --hard origin/main
+
 TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 60")
 PUBLIC_IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
 FECHA=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -26,5 +33,10 @@ EOF
 git add STATUS.md
 if ! git diff --cached --quiet; then
   git commit -m "chore: actualizar IP pública (auto, ${FECHA})"
-  git push origin main
+  # Un reintento con re-sync por si algo más pusheó justo entre el fetch y el push.
+  if ! git push origin main; then
+    git fetch origin main
+    git rebase origin/main
+    git push origin main
+  fi
 fi
