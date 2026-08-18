@@ -1,0 +1,13 @@
+[Unit]
+Description=Reporta la IP pública actual a GitHub (STATUS.md) al arrancar
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/environment/aws_apis/scripts/report_ip.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
