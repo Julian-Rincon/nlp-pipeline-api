@@ -22,6 +22,8 @@ Proyecto académico — Procesamiento de Lenguaje Natural (PLN), Universidad Ser
 
 > La instancia EC2 corre en una cuenta de AWS Academy Learner Lab: al reiniciarse la sesión (límite de 4h de Academy) la IP pública cambia porque **a propósito no usamos IP elástica** — costaría dinero del cupo mientras la instancia está apagada. En su lugar, la instancia se auto-reporta: al arrancar, un servicio systemd (`report-ip.service`, ver [`scripts/`](scripts/)) detecta su IP vía metadata (gratis) y actualiza [STATUS.md](STATUS.md) con un push automático a este repo. La URL de Lambda es estable y siempre funciona.
 
+![Swagger UI de la API](assets/swagger_docs.png)
+
 ## Arquitectura
 
 Un único módulo de pipeline (`nlp_pipeline.py`) y una única app FastAPI (`main.py`) se despliegan de dos formas:
@@ -40,8 +42,8 @@ Ambos despliegues ejecutan el **mismo código de pipeline** — no hay dos imple
 | GET | `/health` | Chequeo de salud |
 | GET | `/` | Info de la API e integrantes |
 | POST | `/processed` | Preprocessing: minúsculas, sin stopwords/puntuación, verbos lematizados |
-| POST | `/dependency` | Árbol de dependencias sintácticas, visualizable en HTML (`?format=json` para JSON) |
-| POST | `/ner` | Entidades nombradas resaltadas en HTML (`?format=json` para lista estructurada) |
+| POST | `/dependency` | Árbol de dependencias sintácticas, visualizable en HTML (`?format=json` para JSON) — [ejemplo abajo](#dependency-y-ner-en-vivo) |
+| POST | `/ner` | Entidades nombradas resaltadas en HTML (`?format=json` para lista estructurada) — [ejemplo abajo](#dependency-y-ner-en-vivo) |
 | POST | `/full` | Pipeline completo en un solo llamado: tokens + POS + lemma + entidades + texto procesado |
 | POST | `/encoding` | Feature extraction: One-hot, Bag-of-Words o TF-IDF (scikit-learn) sobre un corpus |
 
@@ -69,6 +71,16 @@ $ curl -X POST https://u04py63z34.execute-api.us-east-1.amazonaws.com/full \
  "entities":[{"text":"Apple","label":"ORG","start":0,"end":5},
              {"text":"Colombia","label":"LOC","start":43,"end":51}]}
 ```
+
+### `/dependency` y `/ner` en vivo
+
+Salida real de `POST /dependency` con `{"text": "El gato negro come pescado fresco en la cocina."}`:
+
+![Árbol de dependencias](assets/dependency_tree.png)
+
+Salida real de `POST /ner` con `{"text": "Apple está buscando comprar una startup en Bogotá, Colombia..."}`:
+
+![Entidades nombradas resaltadas](assets/ner_entities.png)
 
 ## Límites y decisiones de diseño
 
