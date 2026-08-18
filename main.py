@@ -12,6 +12,7 @@ import logging
 import time
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator
 
@@ -24,6 +25,16 @@ app = FastAPI(
     title="NLP Pipeline API",
     description="Preprocesamiento con spaCy — Andrés Castro, Juan Hurtado, Miguel Flechas, Julián Rincón",
     version="1.0.0",
+)
+
+# API pública de solo lectura/análisis de texto, sin autenticación ni datos
+# sensibles — CORS abierto es intencional para que se pueda probar desde
+# cualquier origen (Swagger UI, notebooks, la app del profesor, etc.).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
 )
 
 ALLOWED_MODELS = {"es_core_news_sm"}
