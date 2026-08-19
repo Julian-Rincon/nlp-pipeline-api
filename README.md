@@ -16,11 +16,12 @@ Microservicio de procesamiento de lenguaje natural con **spaCy** y **FastAPI**, 
 | Despliegue | URL | Docs interactivas |
 |---|---|---|
 | **EC2 / Cloud9** | `http://<ip-actual>:8000` — ver [STATUS.md](STATUS.md) para la IP vigente | `http://<ip-actual>:8000/docs` |
-| **Lambda + API Gateway** | `https://u04py63z34.execute-api.us-east-1.amazonaws.com` | [/docs](https://u04py63z34.execute-api.us-east-1.amazonaws.com/docs) |
+| **Lambda Function URL** | `https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws` | [/docs](https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws/docs) |
+| Lambda + API Gateway (equivalente, se conserva como respaldo) | `https://u04py63z34.execute-api.us-east-1.amazonaws.com` | [/docs](https://u04py63z34.execute-api.us-east-1.amazonaws.com/docs) |
 
-> La instancia EC2 corre en una cuenta de AWS Academy Learner Lab: al reiniciarse la sesión (límite de 4h de Academy) la IP pública cambia porque **a propósito no usamos IP elástica** — costaría dinero del cupo mientras la instancia está apagada. En su lugar, la instancia se auto-reporta: al arrancar, un servicio systemd (`ec2/report-ip.service`) detecta su IP vía metadata (gratis) y actualiza [STATUS.md](STATUS.md) con un push automático a este repo. La URL de Lambda es estable y siempre funciona.
+> La instancia EC2 corre en una cuenta de AWS Academy Learner Lab: al reiniciarse la sesión (límite de 4h de Academy) la IP pública cambia porque **a propósito no usamos IP elástica** — costaría dinero del cupo mientras la instancia está apagada. En su lugar, la instancia se auto-reporta: al arrancar, un servicio systemd (`ec2/report-ip.service`) detecta su IP vía metadata (gratis) y actualiza [STATUS.md](STATUS.md) con un push automático a este repo. La URL de Lambda Function URL es estable y siempre funciona.
 >
-> **Nota sobre Lambda Function URL:** la guía pide exponer Lambda mediante Function URL. Lo intentamos a fondo — función nueva, permiso público `lambda:InvokeFunctionUrl` con `principal:"*"`, esperando hasta 2 minutos de propagación — y siempre devuelve `403 Forbidden`, incluso con la configuración textualmente correcta. Es un guardrail de la cuenta de AWS Academy que bloquea invocación anónima de Function URLs (no un error nuestro de configuración). Como alternativa **funcionalmente equivalente** — misma exposición HTTP pública, sin autenticación, sobre la misma función Lambda — usamos **API Gateway (HTTP API)** con integración proxy directa.
+> **Nota sobre Lambda Function URL:** la guía pide exponer Lambda mediante Function URL, tal cual. La política basada en recursos con `AuthType: NONE` necesita **dos** permisos públicos, no uno: `lambda:InvokeFunctionUrl` (el que documenta la consola por defecto al crear la URL) **y además** `lambda:InvokeFunction` sobre `principal: "*"` — sin el segundo, la invocación real devuelve `403 Forbidden` aunque `aws iam simulate-principal-policy` reporte `"allowed"`, porque el simulador solo evalúa la acción que se le pregunta, no la combinación real que exige el servicio de Function URLs. Se detectó al inspeccionar la consola de Lambda (pestaña **Permisos → URL de la función**), que sí muestra un aviso explícito al respecto, algo que la CLI no expone. Con ambos permisos agregados (`aws lambda add-permission --action lambda:InvokeFunction --principal "*"`, sumado al `lambda:InvokeFunctionUrl` ya existente) la URL responde `200` en todos los endpoints. Se conserva **API Gateway** como despliegue adicional (misma función Lambda, misma app) por redundancia.
 
 ![Swagger UI de la API](assets/swagger_docs.png)
 
@@ -47,7 +48,7 @@ aws_apis/
 | Despliegue | Cómo corre |
 |---|---|
 | **EC2 / AWS Cloud9** | Servicio systemd persistente (`ec2/nlp-api.service`), `uvicorn main:app` |
-| **AWS Lambda** | Imagen de contenedor (`lambda/Dockerfile`) en ECR, invocada vía API Gateway; `lambda/lambda_handler.py` adapta la misma app FastAPI con [Mangum](https://mangum.io/) |
+| **AWS Lambda** | Imagen de contenedor (`lambda/Dockerfile`) en ECR, invocada vía **Function URL** (`AuthType: NONE`) y también vía API Gateway como respaldo; `lambda/lambda_handler.py` adapta la misma app FastAPI con [Mangum](https://mangum.io/) |
 
 ## Endpoints (contrato de la guía, sección 8)
 
@@ -68,10 +69,10 @@ aws_apis/
 - `one_hot[i]`: **una matriz por documento** — una fila por cada ocurrencia retenida (no una fila por documento), cada fila con un único `1` en la posición del término.
 - `tf_idf[i][j] = tf(t,d) × idf(t)`, con `idf(t) = ln((|D|+1)/(n_t+1)) + 1`, **sin normalizar**, redondeado a 4 decimales.
 
-### Ejemplo real (contra la API en Lambda)
+### Ejemplo real (contra la Lambda Function URL)
 
 ```bash
-$ curl -X POST https://u04py63z34.execute-api.us-east-1.amazonaws.com/api/v1/vectorize \
+$ curl -X POST https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws/api/v1/vectorize \
     -H "Content-Type: application/json" \
     -d '{"documents":["Mi gato, su gato y nuestro gato comen pescado","Juan comió en Bogotá","El caballo come muy rápido"]}'
 
@@ -106,7 +107,7 @@ Salida real de `POST /api/v1/visualize/dep`:
 
 Conforme a la sección 6 de la guía: se usó **Claude Code** (Anthropic) durante todo el desarrollo — diseño de la arquitectura, implementación de la API y el pipeline de spaCy, escritura de pruebas, automatización del despliegue en AWS (EC2/Cloud9 y Lambda) y depuración de errores (incluyendo la investigación del bloqueo de Function URL documentada arriba).
 
-**Cómo se verificó:** cada endpoint se probó contra el contrato exacto de la guía con la suite `tests/test_api.py` (pytest, 27 casos incluyendo cada regla de validación), `qa_test.py` (casos límite y adversariales) y `stress_test.py` (capacidad de 25/10 documentos y concurrencia), corridos tanto en local como contra las dos URLs desplegadas en vivo antes de cada entrega. Los valores de TF-IDF se verificaron a mano contra la fórmula de la guía. El equipo revisó el código generado antes de incorporarlo.
+**Cómo se verificó:** cada endpoint se probó contra el contrato exacto de la guía con la suite `tests/test_api.py` (pytest, 27 casos incluyendo cada regla de validación), `qa_test.py` (casos límite y adversariales) y `stress_test.py` (capacidad de 25/10 documentos y concurrencia), corridos tanto en local como contra las URLs desplegadas en vivo (EC2, Lambda Function URL y API Gateway) antes de cada entrega. Los valores de TF-IDF se verificaron a mano contra la fórmula de la guía. El equipo revisó el código generado antes de incorporarlo.
 
 ## Correr localmente
 
@@ -130,23 +131,23 @@ Se ejecutan automáticamente en CI (GitHub Actions) en cada push, junto con la v
 ### QA y capacidad contra una URL en vivo
 
 ```bash
-python3 qa_test.py https://u04py63z34.execute-api.us-east-1.amazonaws.com
-python3 stress_test.py https://u04py63z34.execute-api.us-east-1.amazonaws.com
+python3 qa_test.py https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws
+python3 stress_test.py https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws
 ```
 
-`stress_test.py` cubre exactamente los requisitos de la sección 5 de la guía: 25 documentos de ~1000 caracteres a `/clean`, `/pos`, `/ner`; 10 documentos de ~1000 caracteres a `/vectorize`; y 30 solicitudes concurrentes (el mínimo exigido es 5). Resultado real de la última corrida contra Lambda:
+`stress_test.py` cubre exactamente los requisitos de la sección 5 de la guía: 25 documentos de ~1000 caracteres a `/clean`, `/pos`, `/ner`; 10 documentos de ~1000 caracteres a `/vectorize`; y 30 solicitudes concurrentes (el mínimo exigido es 5). Resultado real de la última corrida contra la Lambda Function URL:
 
 ```
 === 1) Capacidad: 25 documentos de ~1000 caracteres ===
-/api/v1/clean con 25 docs -> 200 en <10s -> t=0.71s
-/api/v1/pos con 25 docs -> 200 en <10s -> t=0.95s
-/api/v1/ner con 25 docs -> 200 en <10s -> t=1.02s
+/api/v1/clean con 25 docs -> 200 en <10s -> t=0.72s
+/api/v1/pos con 25 docs -> 200 en <10s -> t=0.87s
+/api/v1/ner con 25 docs -> 200 en <10s -> t=0.95s
 
 === 2) Capacidad: 10 documentos de ~1000 caracteres a vectorize ===
-/api/v1/vectorize con 10 docs -> 200 en <10s -> t=0.52s
+/api/v1/vectorize con 10 docs -> 200 en <10s -> t=0.48s
 
 === 3) Concurrencia: 30 solicitudes simultáneas ===
-Completadas: 30/30 en 4.13s | p50=360ms p95=2698ms max=3654ms
+Completadas: 30/30 en 4.58s | p50=340ms p95=2484ms max=4139ms
 RESULTADO: TODO OK
 ```
 
@@ -157,6 +158,14 @@ RESULTADO: TODO OK
 docker build -f lambda/Dockerfile -t nlp-lambda-api .
 docker tag nlp-lambda-api:latest <cuenta>.dkr.ecr.<region>.amazonaws.com/nlp-lambda-api:latest
 docker push <cuenta>.dkr.ecr.<region>.amazonaws.com/nlp-lambda-api:latest
+
+# Function URL pública: requiere AMBOS permisos de política basada en recursos
+aws lambda add-permission --function-name nlp-pipeline-api \
+  --statement-id FunctionURLAllowPublicAccess --action lambda:InvokeFunctionUrl \
+  --principal "*" --function-url-auth-type NONE
+aws lambda add-permission --function-name nlp-pipeline-api \
+  --statement-id FunctionURLAllowPublicInvoke --action lambda:InvokeFunction \
+  --principal "*"
 ```
 
 EC2/Cloud9: `git pull`, `pip install -r requirements.txt`, copiar `ec2/*.service` a `/etc/systemd/system/`, `systemctl restart nlp-api`.
