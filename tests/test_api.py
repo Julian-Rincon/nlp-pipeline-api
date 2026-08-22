@@ -41,7 +41,7 @@ def test_clean_minusculas_sin_stopwords_ni_puntuacion():
     assert "el" not in cleaned.split()
 
 
-@pytest.mark.parametrize("simbolo", [",", ":", ".", ";", "-", "!", "(", ")"])
+@pytest.mark.parametrize("simbolo", [",", ":", ".", ";", "-", "!", "(", ")", "_"])
 def test_clean_puntuacion_no_concatena_terminos(simbolo):
     r = client.post("/api/v1/clean", json={"text": f"hola{simbolo}mundo"})
     cleaned = r.json()["cleaned_text"][0]

@@ -12,7 +12,7 @@ import spacy
 from spacy.language import Language
 
 _REPEAT_RE = re.compile(r"(.)\1{4,}")
-_PUNCT_SPLIT_RE = re.compile(r"[^\w\s]", re.UNICODE)
+_PUNCT_SPLIT_RE = re.compile(r"[^\w\s]|_", re.UNICODE)
 
 MODEL = "es_core_news_sm"
 
