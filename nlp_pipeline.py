@@ -12,6 +12,7 @@ import spacy
 from spacy.language import Language
 
 _REPEAT_RE = re.compile(r"(.)\1{4,}")
+_PUNCT_SPLIT_RE = re.compile(r"[^\w\s]", re.UNICODE)
 
 MODEL = "es_core_news_sm"
 
@@ -43,12 +44,17 @@ def get_nlp_dep() -> Language:
 
 # ---------------------------------------------------------------------------
 # /clean — minúsculas, sin puntuación ni stopwords, espacios normalizados.
-# La puntuación es su propio token en spaCy (incluso pegada sin espacio,
-# "hola,mundo" -> ["hola", ",", "mundo"]), así que al filtrarla los términos
-# quedan naturalmente separados: no hay riesgo de concatenación.
+# El tokenizador de es_core_news_sm NO separa toda la puntuación pegada sin
+# espacio (",": y ":" sí, pero ".", ";", "-", "!", "(", ")" quedan fusionados
+# al término vecino, ej. "casa.perro" -> un solo token "casa.perro"). Por eso
+# reemplazamos cualquier carácter no alfanumérico/no-espacio por un espacio
+# ANTES de tokenizar, garantizando que la puntuación siempre actúe como
+# separador tal como exige la guía, sin depender del comportamiento interno
+# del tokenizador.
 # ---------------------------------------------------------------------------
 def clean_tokens(text: str) -> list[str]:
-    doc = get_nlp_light()(_sanitize(text))
+    spaced = _PUNCT_SPLIT_RE.sub(" ", _sanitize(text))
+    doc = get_nlp_light()(spaced)
     return [t.text.lower() for t in doc if not t.is_stop and not t.is_punct and not t.is_space]
 
 
