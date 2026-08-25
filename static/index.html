@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Procesamiento de Lenguaje Natural — spaCy + AWS</title>
+<meta name="description" content="Interfaz en vivo para la API de PLN del Laboratorio I (spaCy + AWS): limpieza, POS, entidades, dependencias y vectorización.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1E2B26;
+    --line:#3E4F47;
+    --chalk:#F3F1E7;
+    --chalk-dim:#9FB0A6;
+    --yellow:#E8C468;
+    --coral:#E38B7C;
+    --blue:#8FC2D4;
+    --paper:#F3EFE4;
+    --ink:#2A2119;
+    --ink-dim:#6B5F4F;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(232,196,104,0.06), transparent),
+      radial-gradient(ellipse 700px 500px at 100% 20%, rgba(143,194,212,0.05), transparent);
+    color:var(--chalk);
+    font-family:'Source Serif 4', Georgia, serif;
+    line-height:1.5;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:0 24px 96px;}
+  a{color:var(--blue);}
+  :focus-visible{outline:2px solid var(--yellow); outline-offset:3px; border-radius:2px;}
+
+  /* ---------- header ---------- */
+  header{padding:48px 0 32px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12.5px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--chalk-dim);
+    display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--yellow);flex:none;}
+  h1{
+    font-family:'Bricolage Grotesque', sans-serif;
+    font-weight:700;
+    font-size:clamp(32px,5.4vw,52px);
+    line-height:1.06;
+    letter-spacing:-.01em;
+    margin:14px 0 12px;
+    color:var(--chalk);
+  }
+  h1 em{font-style:normal;color:var(--yellow);}
+  .lede{color:var(--chalk-dim);font-size:17px;max-width:56ch;margin:0;}
+  nav.top{margin-top:20px;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  nav.top a{color:var(--chalk-dim);text-decoration:none;border-bottom:1px dotted var(--line);}
+  nav.top a:hover{color:var(--chalk);}
+
+  /* ---------- hero / analyzer ---------- */
+  .analyzer{margin-top:8px;}
+  .input-row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;}
+  textarea#sentence{
+    flex:1 1 420px;
+    min-height:64px;
+    resize:vertical;
+    background:transparent;
+    border:none;
+    border-bottom:2px solid var(--line);
+    color:var(--chalk);
+    font-family:'Bricolage Grotesque', sans-serif;
+    font-size:22px;
+    font-weight:500;
+    padding:10px 2px;
+    transition:border-color .15s ease;
+  }
+  textarea#sentence:focus{border-bottom-color:var(--yellow); outline:none;}
+  textarea#sentence::placeholder{color:var(--chalk-dim); opacity:.7;}
+  button.primary{
+    flex:none;
+    background:var(--yellow);
+    color:#22190A;
+    border:none;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:13.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    padding:0 22px;
+    border-radius:3px;
+    cursor:pointer;
+    transition:transform .1s ease, background .15s ease;
+  }
+  button.primary:hover{background:#F0D083;}
+  button.primary:active{transform:translateY(1px);}
+  button.primary:disabled{opacity:.55;cursor:progress;}
+  .hint{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--chalk-dim);margin-top:8px;}
+
+  .error{
+    display:none;
+    margin-top:16px;
+    padding:10px 14px;
+    border-left:3px solid var(--coral);
+    background:rgba(227,139,124,.08);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--coral);
+  }
+  .error.show{display:block;}
+
+  /* ---------- annotation strip (signature element) ---------- */
+  .board{margin-top:36px;}
+  .board-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--chalk-dim);
+    margin-bottom:14px;
+    display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;
+  }
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;letter-spacing:.06em;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  .strip{
+    display:flex;
+    flex-wrap:wrap;
+    row-gap:22px;
+    column-gap:4px;
+    min-height:64px;
+    align-items:flex-end;
+  }
+  .strip.empty{color:var(--chalk-dim); font-family:'IBM Plex Mono',monospace; font-size:13px; align-items:center;}
+
+  .tok{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:0 7px;
+    opacity:0;
+    transform:translateY(4px);
+    animation:tokIn .28s ease forwards;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .tok{animation:none; opacity:1; transform:none;}
+  }
+  @keyframes tokIn{to{opacity:1;transform:translateY(0);}}
+
+  .tok__tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    margin-bottom:5px;
+    white-space:nowrap;
+  }
+  .tok__word{
+    font-family:'Bricolage Grotesque', sans-serif;
+    font-size:19px;
+    font-weight:500;
+    padding-bottom:3px;
+    border-bottom:2px solid transparent;
+  }
+  .tok--noun .tok__tag{color:var(--yellow);}
+  .tok--noun .tok__word{border-color:var(--yellow);}
+  .tok--verb .tok__tag{color:var(--coral);}
+  .tok--verb .tok__word{border-color:var(--coral);}
+  .tok--desc .tok__tag{color:var(--blue);}
+  .tok--desc .tok__word{border-color:var(--blue);}
+  .tok--func{opacity:.55;}
+  .tok--func .tok__word{font-size:16px;font-weight:400;}
+  .tok--func .tok__tag{color:var(--chalk-dim);}
+
+  .tok--ent .tok__word{background:rgba(227,139,124,.16); border-radius:3px 3px 0 0;}
+  .ent-chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:.08em;
+    color:#22190A;
+    background:var(--coral);
+    padding:1px 5px;
+    border-radius:2px;
+    margin-top:5px;
+  }
+
+  .clean-line{
+    margin-top:22px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--chalk-dim);
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+  .clean-line b{color:var(--chalk-dim); font-weight:600;}
+  .clean-line span{color:var(--chalk);}
+
+  /* ---------- paper cards (dep tree, docs) ---------- */
+  .card{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:4px;
+    padding:22px 24px;
+    margin-top:18px;
+    box-shadow:0 10px 30px -12px rgba(0,0,0,.5);
+    position:relative;
+  }
+  .card::before{
+    content:'';
+    position:absolute;
+    top:-7px;left:28px;
+    width:34px;height:14px;
+    background:var(--yellow);
+    opacity:.9;
+    border-radius:1px;
+    transform:rotate(-3deg);
+  }
+  .card h3{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin:0 0 12px;
+  }
+  .dep-holder{overflow-x:auto;}
+  .dep-holder svg{max-width:none;}
+  .dep-holder:empty::after{
+    content:'Analiza una frase arriba para ver el árbol.';
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    color:var(--ink-dim);
+  }
+
+  /* ---------- sections ---------- */
+  section.block{margin-top:64px;}
+  .block h2{
+    font-family:'Bricolage Grotesque', sans-serif;
+    font-size:26px;
+    font-weight:700;
+    margin:0 0 6px;
+  }
+  .block p.desc{color:var(--chalk-dim); margin:0 0 20px; max-width:60ch; font-size:15px;}
+
+  .vec-docs{display:flex;flex-direction:column;gap:8px;}
+  .vec-docs input{
+    background:transparent;
+    border:none;
+    border-bottom:1px solid var(--line);
+    color:var(--chalk);
+    font-family:'Source Serif 4',serif;
+    font-size:16px;
+    padding:8px 2px;
+  }
+  .vec-docs input:focus{border-bottom-color:var(--yellow); outline:none;}
+  .vec-controls{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center;}
+  button.ghost{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--chalk-dim);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    padding:8px 14px;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  button.ghost:hover{border-color:var(--chalk-dim); color:var(--chalk);}
+
+  .vocab-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .vocab-row span{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    background:rgba(0,0,0,.06);
+    color:var(--ink-dim);
+    padding:3px 8px;
+    border-radius:10px;
+  }
+  table.tfidf{border-collapse:collapse; width:100%; font-family:'IBM Plex Mono',monospace; font-size:12px;}
+  table.tfidf th, table.tfidf td{padding:6px 8px; text-align:right; border-bottom:1px solid rgba(0,0,0,.08);}
+  table.tfidf th:first-child, table.tfidf td:first-child{text-align:left; color:var(--ink-dim); font-family:'Source Serif 4',serif; font-size:13px;}
+  table.tfidf th{color:var(--ink-dim); font-weight:600; font-size:10.5px; letter-spacing:.04em; text-transform:uppercase;}
+  table.tfidf td.nz{background:rgba(232,196,104,.28); border-radius:2px; color:var(--ink);}
+  .tfidf-wrap{overflow-x:auto;}
+
+  footer{
+    margin-top:88px;
+    padding-top:24px;
+    border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--chalk-dim);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  footer a{color:var(--chalk-dim);}
+  footer a:hover{color:var(--chalk);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow"><span class="dot"></span> Laboratorio I · PLN · Universidad Sergio Arboleda</div>
+    <h1>Escribe una frase.<br>Mira cómo la <em>lee</em> la máquina.</h1>
+    <p class="lede">Interfaz en vivo sobre la API de procesamiento de texto (spaCy + FastAPI, desplegada en AWS). Cada resultado que ves abajo es una llamada real a los mismos endpoints que evalúa el laboratorio.</p>
+    <nav class="top"><a href="/docs">→ ver la documentación técnica (Swagger)</a></nav>
+  </header>
+
+  <section class="analyzer">
+    <div class="input-row">
+      <textarea id="sentence" placeholder="Ej: El gato negro de María duerme sobre la mesa en Bogotá.">El gato negro de María duerme sobre la mesa en Bogotá.</textarea>
+      <button class="primary" id="analyzeBtn">Analizar</button>
+    </div>
+    <div class="hint">POST /api/v1/pos · /ner · /clean · /visualize/dep — en paralelo, contra esta misma API.</div>
+    <div class="error" id="errorBox"></div>
+
+    <div class="board">
+      <div class="board-label">
+        <span>Palabra por palabra</span>
+        <span class="legend">
+          <span><i style="background:var(--yellow)"></i>sustantivo</span>
+          <span><i style="background:var(--coral)"></i>verbo</span>
+          <span><i style="background:var(--blue)"></i>adjetivo/adverbio</span>
+          <span><i style="background:var(--coral);border-radius:50%"></i>entidad</span>
+        </span>
+      </div>
+      <div class="strip empty" id="strip">Escribe algo y dale a «Analizar».</div>
+      <div class="clean-line" id="cleanLine" style="display:none"><b>Texto limpio:</b> <span id="cleanText"></span></div>
+    </div>
+
+    <div class="card">
+      <h3>Árbol de dependencias</h3>
+      <div class="dep-holder" id="depHolder"></div>
+    </div>
+  </section>
+
+  <section class="block" id="vectorize">
+    <h2>Vocabulario y TF-IDF</h2>
+    <p class="desc">La vectorización necesita al menos dos documentos para tener sentido — compara estos y mira qué términos comparten.</p>
+    <div class="vec-docs" id="vecDocs">
+      <input value="Mi gato come pescado todos los días">
+      <input value="Mi perro come carne todos los días">
+      <input value="El pájaro vuela alto sobre el río">
+    </div>
+    <div class="vec-controls">
+      <button class="ghost" id="addDoc" type="button">+ agregar documento</button>
+      <button class="primary" id="vecBtn" type="button">Vectorizar</button>
+    </div>
+    <div id="vecResult"></div>
+  </section>
+
+  <footer>
+    <span id="origin"></span>
+    <span>Código en <a href="https://github.com/Julian-Rincon/nlp-pipeline-api" target="_blank" rel="noopener">GitHub</a> · <a href="/docs">Swagger /docs</a></span>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  document.getElementById('origin').textContent = 'Sirviendo desde: ' + window.location.origin;
+
+  const POS_GROUP = {
+    NOUN:'noun', PROPN:'noun',
+    VERB:'verb', AUX:'verb',
+    ADJ:'desc', ADV:'desc',
+  };
+
+  function alignOffsets(text, tokens){
+    let cursor = 0;
+    return tokens.map(t => {
+      let idx = text.indexOf(t.text, cursor);
+      if (idx === -1) idx = cursor;
+      const start = idx, end = idx + t.text.length;
+      cursor = end;
+      return Object.assign({}, t, {start, end});
+    });
+  }
+
+  function entityForRange(entities, start, end){
+    return entities.find(e => start < e.end && end > e.start);
+  }
+
+  async function postJSON(url, body){
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      let detail = res.status;
+      try { const j = await res.json(); detail = j.detail || detail; } catch(e){}
+      throw new Error(`${url} → ${res.status}: ${JSON.stringify(detail)}`);
+    }
+    return res.json();
+  }
+
+  function showError(msg){
+    const box = document.getElementById('errorBox');
+    box.textContent = 'Algo falló: ' + msg;
+    box.classList.add('show');
+  }
+  function clearError(){
+    document.getElementById('errorBox').classList.remove('show');
+  }
+
+  async function analyze(){
+    const text = document.getElementById('sentence').value.trim();
+    const strip = document.getElementById('strip');
+    const btn = document.getElementById('analyzeBtn');
+    const depHolder = document.getElementById('depHolder');
+    const cleanLine = document.getElementById('cleanLine');
+
+    if (!text){
+      showError('escribe una frase primero.');
+      return;
+    }
+    clearError();
+    btn.disabled = true;
+    btn.textContent = 'Analizando…';
+    strip.className = 'strip empty';
+    strip.textContent = 'Consultando la API…';
+    depHolder.innerHTML = '';
+
+    try {
+      const [posRes, nerRes, cleanRes, depHtml] = await Promise.all([
+        postJSON('/api/v1/pos', {text}),
+        postJSON('/api/v1/ner', {text}),
+        postJSON('/api/v1/clean', {text}),
+        fetch('/api/v1/visualize/dep', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text})
+        }).then(r => { if(!r.ok) throw new Error('visualize/dep → ' + r.status); return r.text(); })
+      ]);
+
+      const tokens = alignOffsets(text, posRes.results[0].tokens);
+      const entities = nerRes.results[0].entities;
+
+      strip.className = 'strip';
+      strip.innerHTML = '';
+      tokens.forEach((t, i) => {
+        const ent = entityForRange(entities, t.start, t.end);
+        const group = POS_GROUP[t.pos] || 'func';
+        const el = document.createElement('div');
+        el.className = 'tok tok--' + group + (ent ? ' tok--ent' : '');
+        el.style.animationDelay = (i * 28) + 'ms';
+        el.innerHTML =
+          `<span class="tok__tag">${t.pos}</span>` +
+          `<span class="tok__word">${escapeHtml(t.text)}</span>` +
+          (ent ? `<span class="ent-chip">${ent.label}</span>` : '');
+        strip.appendChild(el);
+      });
+
+      document.getElementById('cleanText').textContent = cleanRes.cleaned_text[0];
+      cleanLine.style.display = 'block';
+
+      const doc = new DOMParser().parseFromString(depHtml, 'text/html');
+      const svg = doc.querySelector('svg');
+      depHolder.innerHTML = '';
+      if (svg) depHolder.appendChild(svg);
+
+    } catch(err){
+      strip.className = 'strip empty';
+      strip.textContent = 'No se pudo analizar.';
+      showError(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Analizar';
+    }
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  document.getElementById('analyzeBtn').addEventListener('click', analyze);
+  document.getElementById('sentence').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) analyze();
+  });
+
+  // ---- vectorize ficha ----
+  document.getElementById('addDoc').addEventListener('click', () => {
+    const wrap = document.getElementById('vecDocs');
+    const input = document.createElement('input');
+    input.placeholder = 'Otro documento…';
+    wrap.appendChild(input);
+    input.focus();
+  });
+
+  document.getElementById('vecBtn').addEventListener('click', async () => {
+    const inputs = Array.from(document.querySelectorAll('#vecDocs input'));
+    const docs = inputs.map(i => i.value.trim()).filter(Boolean);
+    const resultBox = document.getElementById('vecResult');
+    const btn = document.getElementById('vecBtn');
+
+    if (docs.length < 2){
+      resultBox.innerHTML = `<div class="error show" style="margin-top:18px">Necesitas al menos 2 documentos con texto.</div>`;
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Vectorizando…';
+    try {
+      const data = await postJSON('/api/v1/vectorize', {documents: docs});
+      const { vocabulary, tf_idf } = data;
+
+      let vocabHtml = vocabulary.map(v => `<span>${escapeHtml(v)}</span>`).join('');
+      let rows = tf_idf.map((row, i) => {
+        const label = docs[i].length > 34 ? docs[i].slice(0,34) + '…' : docs[i];
+        const cells = row.map(v => `<td class="${v>0?'nz':''}">${v.toFixed(v>0?2:0) === '0' ? '·' : v.toFixed(2)}</td>`).join('');
+        return `<tr><td>${escapeHtml(label)}</td>${cells}</tr>`;
+      }).join('');
+      let head = vocabulary.map(v => `<th>${escapeHtml(v)}</th>`).join('');
+
+      resultBox.innerHTML = `
+        <div class="card">
+          <h3>Vocabulario (${vocabulary.length} términos)</h3>
+          <div class="vocab-row">${vocabHtml}</div>
+          <h3>TF-IDF</h3>
+          <div class="tfidf-wrap">
+            <table class="tfidf">
+              <thead><tr><th>documento</th>${head}</tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    } catch(err){
+      resultBox.innerHTML = `<div class="error show" style="margin-top:18px">Algo falló: ${escapeHtml(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Vectorizar';
+    }
+  });
+})();
+</script>
+</body>
+</html>

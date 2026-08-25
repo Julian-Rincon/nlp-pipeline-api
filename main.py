@@ -9,6 +9,7 @@ Este mismo archivo se despliega tal cual en las dos arquitecturas exigidas:
 """
 import logging
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, field_validator
 
 import nlp_pipeline as nlp
+
+_UI_HTML = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nlp_api")
@@ -95,6 +98,11 @@ class VectorizeIn(BaseModel):
         if len(v) > MAX_BATCH_SIZE:
             raise ValueError(f"documents: lote demasiado grande ({len(v)}), máximo {MAX_BATCH_SIZE}")
         return [_validate_one(item, field="documents") for item in v]
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def ui_root():
+    return _UI_HTML
 
 
 @app.get("/health")
