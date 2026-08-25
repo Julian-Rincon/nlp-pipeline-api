@@ -4,6 +4,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && python -m spacy download es_core_news_sm
 
 COPY nlp_pipeline.py main.py ${LAMBDA_TASK_ROOT}/
+COPY static/ ${LAMBDA_TASK_ROOT}/static/
 COPY lambda/lambda_handler.py ${LAMBDA_TASK_ROOT}/
 
 CMD ["lambda_handler.handler"]

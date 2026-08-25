@@ -8,6 +8,7 @@ Este mismo archivo se despliega tal cual en las dos arquitecturas exigidas:
   - Lambda: envuelto con Mangum (ver lambda/lambda_handler.py)
 """
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -18,7 +19,9 @@ from pydantic import BaseModel, field_validator
 
 import nlp_pipeline as nlp
 
-_UI_HTML = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+_STATIC_DIR = Path(__file__).parent / "static"
+_UI_FILE = "index_lambda.html" if os.environ.get("AWS_LAMBDA_FUNCTION_NAME") else "index.html"
+_UI_HTML = (_STATIC_DIR / _UI_FILE).read_text(encoding="utf-8")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nlp_api")
