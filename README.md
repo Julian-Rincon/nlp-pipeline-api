@@ -25,6 +25,16 @@ Microservicio de procesamiento de lenguaje natural con **spaCy** y **FastAPI**, 
 >
 > **Nota sobre Lambda Function URL:** la guía pide exponer Lambda mediante Function URL, tal cual. La política basada en recursos con `AuthType: NONE` necesita **dos** permisos públicos, no uno: `lambda:InvokeFunctionUrl` (el que documenta la consola por defecto al crear la URL) **y además** `lambda:InvokeFunction` sobre `principal: "*"` — sin el segundo, la invocación real devuelve `403 Forbidden` aunque `aws iam simulate-principal-policy` reporte `"allowed"`, porque el simulador solo evalúa la acción que se le pregunta, no la combinación real que exige el servicio de Function URLs. Se detectó al inspeccionar la consola de Lambda (pestaña **Permisos → URL de la función**), que sí muestra un aviso explícito al respecto, algo que la CLI no expone. Con ambos permisos agregados (`aws lambda add-permission --action lambda:InvokeFunction --principal "*"`, sumado al `lambda:InvokeFunctionUrl` ya existente) la URL responde `200` en todos los endpoints. Se conserva **API Gateway** como despliegue adicional (misma función Lambda, misma app) por redundancia.
 
+## Interfaz web
+
+Además de la API en sí, `GET /` sirve una interfaz visual para probar los 5 endpoints sin necesidad de curl/Postman: se escribe una frase y se ve en vivo el análisis palabra por palabra (categoría gramatical + entidades), el árbol de dependencias, y una ficha aparte para comparar vectorización TF-IDF entre documentos. Cada despliegue sirve una variante visual distinta (mismo `main.py`, detecta el entorno por `AWS_LAMBDA_FUNCTION_NAME`) para diferenciarlos a simple vista:
+
+| EC2 | Lambda |
+|---|---|
+| ![UI en EC2](assets/ui_ec2.png) | ![UI en Lambda](assets/ui_lambda.png) |
+
+Para quien prefiera la vista técnica, `/docs` sigue disponible con Swagger UI en ambos despliegues:
+
 ![Swagger UI de la API](assets/swagger_docs.png)
 
 ## Arquitectura
