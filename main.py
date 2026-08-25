@@ -14,7 +14,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, field_validator
 
 import nlp_pipeline as nlp
@@ -26,7 +26,17 @@ _UI_HTML = (_STATIC_DIR / _UI_FILE).read_text(encoding="utf-8")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nlp_api")
 
+
+class UTF8JSONResponse(JSONResponse):
+    # Starlette solo agrega "; charset=utf-8" automáticamente a media types
+    # "text/*" — application/json se queda sin declararlo, y algunos clientes
+    # HTTP (no todos asumen UTF-8 para JSON) caen al default de ISO-8859-1
+    # de HTTP y muestran tildes/ñ como mojibake aunque los bytes ya son UTF-8.
+    media_type = "application/json; charset=utf-8"
+
+
 app = FastAPI(
+    default_response_class=UTF8JSONResponse,
     title="NLP Text Processing API",
     description="Contrato del Laboratorio I - 2026 S02 (spaCy + AWS)",
     version="2.0.0",
