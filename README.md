@@ -83,6 +83,9 @@ aws_apis/
 
 ### Ejemplo real (contra la Lambda Function URL)
 
+> **Nota para Windows:** en PowerShell, `curl` es un alias de `Invoke-WebRequest` — no es el curl real, y los ejemplos de `-d '...'` con comillas simples no funcionan igual. Usa `Invoke-RestMethod` como se muestra abajo (o `curl.exe` explícito, que sí es el real en Windows 10/11).
+
+**Bash / Linux / macOS:**
 ```bash
 $ curl -X POST https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws/api/v1/vectorize \
     -H "Content-Type: application/json" \
@@ -95,17 +98,32 @@ $ curl -X POST https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.
 ```
 `TF-IDF(gato, d1) = 3 × (ln(4/2)+1) = 5.0794` — verificado a mano contra la fórmula exacta de la guía.
 
+**Windows PowerShell:**
+```powershell
+$body = @{ documents = @("Mi gato, su gato y nuestro gato comen pescado","Juan comió en Bogotá","El caballo come muy rápido") } | ConvertTo-Json -Compress
+Invoke-RestMethod -Uri "https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws/api/v1/vectorize" -Method Post -Body $body -ContentType "application/json" | ConvertTo-Json -Depth 10
+```
+
 ### `/api/v1/visualize/dep` y `/api/v1/ner` en vivo
 
 `/visualize/dep` devuelve un documento HTML completo (no JSON) con el SVG de displaCy embebido. Dos formas de verlo:
 
 - **Desde la [interfaz web](#interfaz-web)** (`/` en cualquiera de los despliegues): se renderiza automáticamente al analizar una frase, dentro de la tarjeta "Árbol de dependencias".
 - **Por línea de comandos**, guardando la respuesta como archivo y abriéndolo en el navegador:
+
+  Bash / Linux / macOS:
   ```bash
   curl -X POST http://23.22.176.73:8000/api/v1/visualize/dep \
       -H "Content-Type: application/json" \
       -d '{"text":"El gato negro come pescado rápido"}' \
       -o arbol.html
+  # luego: abrir arbol.html en cualquier navegador
+  ```
+
+  Windows PowerShell:
+  ```powershell
+  $body = @{ text = "El gato negro come pescado rápido" } | ConvertTo-Json -Compress
+  Invoke-RestMethod -Uri "http://23.22.176.73:8000/api/v1/visualize/dep" -Method Post -Body $body -ContentType "application/json" -OutFile arbol.html
   # luego: abrir arbol.html en cualquier navegador
   ```
 
@@ -158,6 +176,7 @@ Se ejecutan automáticamente en CI (GitHub Actions) en cada push, junto con la v
 python3 qa_test.py https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws
 python3 stress_test.py https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.aws
 ```
+En Windows usualmente es `python` en vez de `python3` (el instalador de Python para Windows no siempre registra el alias `python3`).
 
 `stress_test.py` cubre exactamente los requisitos de la sección 5 de la guía: 25 documentos de ~1000 caracteres a `/clean`, `/pos`, `/ner`; 10 documentos de ~1000 caracteres a `/vectorize`; y 30 solicitudes concurrentes (el mínimo exigido es 5). Resultado real de la última corrida contra la Lambda Function URL:
 
