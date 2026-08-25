@@ -97,7 +97,19 @@ $ curl -X POST https://7jh7mtmt7a54pg7xqpnjdxf2tu0kuyia.lambda-url.us-east-1.on.
 
 ### `/api/v1/visualize/dep` y `/api/v1/ner` en vivo
 
-Salida real de `POST /api/v1/visualize/dep`:
+`/visualize/dep` devuelve un documento HTML completo (no JSON) con el SVG de displaCy embebido. Dos formas de verlo:
+
+- **Desde la [interfaz web](#interfaz-web)** (`/` en cualquiera de los despliegues): se renderiza automáticamente al analizar una frase, dentro de la tarjeta "Árbol de dependencias".
+- **Por línea de comandos**, guardando la respuesta como archivo y abriéndolo en el navegador:
+  ```bash
+  curl -X POST http://23.22.176.73:8000/api/v1/visualize/dep \
+      -H "Content-Type: application/json" \
+      -d '{"text":"El gato negro come pescado rápido"}' \
+      -o arbol.html
+  # luego: abrir arbol.html en cualquier navegador
+  ```
+
+Salida real (captura de esa misma respuesta):
 
 ![Árbol de dependencias](assets/dependency_tree.png)
 
