@@ -16,13 +16,13 @@ Microservicio de procesamiento de lenguaje natural con **spaCy** y **FastAPI**, 
 
 | Despliegue | URL | Docs interactivas |
 |---|---|---|
-| **EC2** | `http://44.198.226.249:8000` (IP elástica fija) | `http://44.198.226.249:8000/docs` |
-| **Lambda Function URL** | `https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.aws` | [/docs](https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.aws/docs) |
-| Lambda + API Gateway (equivalente, se conserva como respaldo) | `https://subus306y6.execute-api.us-east-1.amazonaws.com` | [/docs](https://subus306y6.execute-api.us-east-1.amazonaws.com/docs) |
+| **EC2** | `http://100.30.122.233:8000` (IP elástica fija) | `http://100.30.122.233:8000/docs` |
+| **Lambda Function URL** | `https://vq7cpgvqxwaaaj62mogoklhrxm0ocpkw.lambda-url.us-east-1.on.aws` | [/docs](https://vq7cpgvqxwaaaj62mogoklhrxm0ocpkw.lambda-url.us-east-1.on.aws/docs) |
+| Lambda + API Gateway (equivalente, se conserva como respaldo) | `https://2gmdnpds69.execute-api.us-east-1.amazonaws.com` | [/docs](https://2gmdnpds69.execute-api.us-east-1.amazonaws.com/docs) |
 
 > **Redesplegado en cuenta nueva de AWS Academy** (la anterior fue desactivada por Vocareum, código `SUSPENDED9`, límite de concurrencia de SageMaker — ver `Actividad 2/README.md`). Esta cuenta **no tiene Cloud9 habilitado**, así que la EC2 se lanzó directamente (no vía Cloud9) — el requisito de la guía es la instancia EC2 en sí, no el uso del editor Cloud9.
 >
-> **IP fija de EC2:** se asignó `44.198.226.249` el 2026-09-12. `ec2/report-ip.service` se conserva activo como red de seguridad.
+> **IP fija de EC2:** se asignó `100.30.122.233` el 2026-09-12. `ec2/report-ip.service` se conserva activo como red de seguridad.
 >
 > **Aun así, la instancia no queda encendida sola indefinidamente:** AWS Academy detiene la instancia EC2 automáticamente tras un período de inactividad (observado empíricamente: ~35 minutos, incluso con tráfico HTTP real llegando — no es un límite de sesión ni algo que iniciemos nosotros). La IP fija resuelve "cuál es la URL", no "si la instancia está prendida en este momento". Ver [STATUS.md](STATUS.md) para el estado más reciente. Por eso Lambda Function URL / API Gateway son la vía más confiable para calificación automatizada sin intervención manual previa.
 >
@@ -90,7 +90,7 @@ aws_apis/
 
 **Bash / Linux / macOS:**
 ```bash
-$ curl -X POST https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.aws/api/v1/vectorize \
+$ curl -X POST https://vq7cpgvqxwaaaj62mogoklhrxm0ocpkw.lambda-url.us-east-1.on.aws/api/v1/vectorize \
     -H "Content-Type: application/json" \
     -d '{"documents":["Mi gato, su gato y nuestro gato comen pescado","Juan comió en Bogotá","El caballo come muy rápido"]}'
 
@@ -104,7 +104,7 @@ $ curl -X POST https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.
 **Windows PowerShell:**
 ```powershell
 $body = @{ documents = @("Mi gato, su gato y nuestro gato comen pescado","Juan comió en Bogotá","El caballo come muy rápido") } | ConvertTo-Json -Compress
-Invoke-RestMethod -Uri "https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.aws/api/v1/vectorize" -Method Post -Body $body -ContentType "application/json" | ConvertTo-Json -Depth 10
+Invoke-RestMethod -Uri "https://vq7cpgvqxwaaaj62mogoklhrxm0ocpkw.lambda-url.us-east-1.on.aws/api/v1/vectorize" -Method Post -Body $body -ContentType "application/json" | ConvertTo-Json -Depth 10
 ```
 
 ### `/api/v1/visualize/dep` y `/api/v1/ner` en vivo
@@ -116,7 +116,7 @@ Invoke-RestMethod -Uri "https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-e
 
   Bash / Linux / macOS:
   ```bash
-  curl -X POST http://44.198.226.249:8000/api/v1/visualize/dep \
+  curl -X POST http://100.30.122.233:8000/api/v1/visualize/dep \
       -H "Content-Type: application/json" \
       -d '{"text":"El gato negro come pescado rápido"}' \
       -o arbol.html
@@ -126,7 +126,7 @@ Invoke-RestMethod -Uri "https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-e
   Windows PowerShell:
   ```powershell
   $body = @{ text = "El gato negro come pescado rápido" } | ConvertTo-Json -Compress
-  Invoke-RestMethod -Uri "http://44.198.226.249:8000/api/v1/visualize/dep" -Method Post -Body $body -ContentType "application/json" -OutFile arbol.html
+  Invoke-RestMethod -Uri "http://100.30.122.233:8000/api/v1/visualize/dep" -Method Post -Body $body -ContentType "application/json" -OutFile arbol.html
   # luego: abrir arbol.html en cualquier navegador
   ```
 
@@ -176,8 +176,8 @@ Se ejecutan automáticamente en CI (GitHub Actions) en cada push, junto con la v
 ### QA y capacidad contra una URL en vivo
 
 ```bash
-python3 qa_test.py https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.aws
-python3 stress_test.py https://2theczscnpubsutso5rkcj3sk40eyzms.lambda-url.us-east-1.on.aws
+python3 qa_test.py https://vq7cpgvqxwaaaj62mogoklhrxm0ocpkw.lambda-url.us-east-1.on.aws
+python3 stress_test.py https://vq7cpgvqxwaaaj62mogoklhrxm0ocpkw.lambda-url.us-east-1.on.aws
 ```
 En Windows usualmente es `python` en vez de `python3` (el instalador de Python para Windows no siempre registra el alias `python3`).
 
