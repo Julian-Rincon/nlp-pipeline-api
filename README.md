@@ -152,7 +152,7 @@ Salida real (captura de esa misma respuesta):
 
 Conforme a la sección 6 de la guía: se usó **Claude Code** (Anthropic) durante todo el desarrollo — diseño de la arquitectura, implementación de la API y el pipeline de spaCy, escritura de pruebas, automatización del despliegue en AWS (EC2/Cloud9 y Lambda) y depuración de errores (incluyendo la investigación del bloqueo de Function URL documentada arriba).
 
-**Cómo se verificó:** cada endpoint se probó contra el contrato exacto de la guía con la suite `tests/test_api.py` (pytest, 27 casos incluyendo cada regla de validación), `qa_test.py` (casos límite y adversariales) y `stress_test.py` (capacidad de 25/10 documentos y concurrencia), corridos tanto en local como contra las URLs desplegadas en vivo (EC2, Lambda Function URL y API Gateway) antes de cada entrega. Los valores de TF-IDF se verificaron a mano contra la fórmula de la guía. El equipo revisó el código generado antes de incorporarlo.
+**Cómo se verificó:** cada endpoint se probó contra el contrato exacto de la guía con la suite `tests/test_api.py` (pytest, 35 casos incluyendo cada regla de validación), `qa_test.py` (casos límite y adversariales) y `stress_test.py` (capacidad de 25/10 documentos y concurrencia), corridos tanto en local como contra las URLs desplegadas en vivo (EC2, Lambda Function URL y API Gateway) antes de cada entrega. Los valores de TF-IDF se verificaron a mano contra la fórmula de la guía, y también con un lote de solicitudes adversariales simulando la evaluación automática de caja negra de la sección 7-9 (60/60 verificaciones OK en EC2 y Lambda, incluida paridad byte-a-byte entre ambos despliegues). El equipo revisó el código generado antes de incorporarlo.
 
 ## Correr localmente
 
