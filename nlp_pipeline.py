@@ -3,6 +3,7 @@ Pipeline compartido de spaCy — usado tal cual por las dos APIs (EC2/Cloud9 y
 Lambda) para garantizar que ambas cumplan el mismo contrato funcional exigido
 por la guía del laboratorio (Procesamiento_de_texto_con_spaCy_y_AWS.pdf).
 """
+import hashlib
 import html
 import math
 import re
@@ -90,8 +91,20 @@ def ner_entities(text: str) -> list[dict]:
 def dependency_svg_html(text: str) -> str:
     from spacy import displacy
 
-    doc = get_nlp_dep()(_sanitize(text))
+    sanitized = _sanitize(text)
+    doc = get_nlp_dep()(sanitized)
     svg = displacy.render(doc, style="dep", jupyter=False, options={"distance": 110, "compact": True})
+    # displaCy asigna un id aleatorio (uuid4) a los elementos del SVG en cada
+    # invocación, así que dos solicitudes con el mismo texto producen HTML
+    # distinto aunque el análisis de dependencias sea idéntico. Se reemplaza por
+    # un id determinista derivado del texto de entrada para que solicitudes
+    # equivalentes produzcan respuestas byte a byte idénticas (sección 5,
+    # atributo "Consistencia").
+    match = re.search(r'id="([0-9a-f]{32})-0"', svg)
+    if match:
+        random_id = match.group(1)
+        deterministic_id = hashlib.sha256(sanitized.encode("utf-8")).hexdigest()[:32]
+        svg = svg.replace(random_id, deterministic_id)
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>Análisis de dependencias</title></head>
 <body style="font-family:sans-serif;padding:24px">
