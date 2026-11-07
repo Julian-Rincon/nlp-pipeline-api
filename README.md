@@ -215,3 +215,8 @@ aws lambda add-permission --function-name nlp-pipeline-api \
 ```
 
 EC2/Cloud9: `git pull`, `pip install -r requirements.txt`, copiar `ec2/*.service` a `/etc/systemd/system/`, `systemctl restart nlp-api`.
+
+---
+
+<!-- julian-rincon-footer -->
+<p align="center"><sub>Hecho por <b>Julián Rincón</b> (proyecto en equipo) · <a href="https://julian-rincon.github.io/#p-nlp">Portafolio</a> · <a href="https://www.linkedin.com/in/julian-esteban-rinc%C3%B3n-rodriguez-1a05501b7/">LinkedIn</a> · <a href="https://github.com/Julian-Rincon">GitHub</a></sub></p>
